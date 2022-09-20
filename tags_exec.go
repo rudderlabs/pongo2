@@ -2,6 +2,7 @@ package pongo2
 
 import (
 	"bytes"
+	"log"
 )
 
 type tagExecNode struct {
@@ -17,11 +18,18 @@ func (node *tagExecNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *
 		return err
 	}
 	templateSet := ctx.template.set
+	s := temp.String()
+	currentTemplate, _ := templateSet.FromString(s)
+	if currentTemplate == nil {
+		log.Fatalf("Could not read template %s, please check the syntax", s)
+	}
+
+	// New context with global, public and private context
+	// we need all 3
 	newContext := make(Context)
 	newContext.Update(ctx.Private)
 	newContext.Update(ctx.Public)
-	s := temp.String()
-	currentTemplate, _ := templateSet.FromString(s)
+	newContext.Update(templateSet.Globals)
 	finalRes, _ := currentTemplate.Execute(newContext)
 	moveMacrosToMainTemplate(currentTemplate, ctx)
 
@@ -29,7 +37,6 @@ func (node *tagExecNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *
 	if err2 != nil {
 		return nil
 	}
-
 	return nil
 }
 
