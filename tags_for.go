@@ -1,11 +1,16 @@
 package pongo2
 
+import (
+	"reflect"
+)
+
 type tagForNode struct {
 	key             string
 	value           string // only for maps: for key, value in map
 	objectEvaluator IEvaluator
 	reversed        bool
 	sorted          bool
+	exportMacros    bool
 
 	bodyWrapper  *NodeWrapper
 	emptyWrapper *NodeWrapper
@@ -79,6 +84,13 @@ func (node *tagForNode) Execute(ctx *ExecutionContext, writer TemplateWriter) (f
 			}
 		}
 	}, node.reversed, node.sorted)
+	if node.exportMacros {
+		for k, v := range forCtx.Private {
+			if reflect.TypeOf(v).Kind() == reflect.Func {
+				ctx.Private[k] = v
+			}
+		}
+	}
 
 	return forError
 }
@@ -121,6 +133,10 @@ func tagForParser(doc *Parser, start *Token, arguments *Parser) (INodeTag, *Erro
 
 	if arguments.MatchOne(TokenIdentifier, "sorted") != nil {
 		forNode.sorted = true
+	}
+
+	if arguments.MatchOne(TokenIdentifier, "exportmacros") != nil {
+		forNode.exportMacros = true
 	}
 
 	if arguments.Remaining() > 0 {
