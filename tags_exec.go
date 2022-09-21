@@ -2,7 +2,6 @@ package pongo2
 
 import (
 	"bytes"
-	"log"
 )
 
 type tagExecNode struct {
@@ -19,43 +18,12 @@ func (node *tagExecNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *
 	}
 	templateSet := ctx.template.set
 	s := temp.String()
-	currentTemplate, _ := templateSet.FromString(s)
-	if currentTemplate == nil {
-		log.Fatalf("Could not read template %s, please check the syntax", s)
-	}
-
-	// New context with global, public and private context
-	// we need all 3, globals comes from templateSet,
-	// public for all variables passed, private for macros etc defined in amin template
-	newContext := make(Context)
-	newContext.Update(ctx.Private)
-	newContext.Update(ctx.Public)
-	finalRes, _ := currentTemplate.Execute(newContext)
-	moveMacrosToMainTemplate(currentTemplate, ctx)
-
-	_, err2 := writer.WriteString(finalRes)
+	currentTemplate, err2 := templateSet.FromString(s)
 	if err2 != nil {
-		return nil
+		return err2.(*Error)
 	}
+	currentTemplate.root.Execute(ctx, writer)
 	return nil
-}
-
-func moveMacrosToMainTemplate(template *Template, context *ExecutionContext) {
-	for _, macro := range template.exportedMacros {
-		macro.Execute(context, nil)
-	}
-	for _, node := range template.root.Nodes {
-		importNode, ok := node.(*tagImportNode)
-		if ok {
-			for _, macro := range importNode.macros {
-				macro.Execute(context, nil)
-			}
-		}
-		macroNode, ok := node.(*tagMacroNode)
-		if ok {
-			macroNode.Execute(context, nil)
-		}
-	}
 }
 
 func tagExecuteParser(doc *Parser, start *Token, arguments *Parser) (INodeTag, *Error) {
