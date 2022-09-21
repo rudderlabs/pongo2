@@ -17,8 +17,7 @@ func (node *tagExecNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *
 		return err
 	}
 	templateSet := ctx.template.set
-	s := temp.String()
-	currentTemplate, err2 := templateSet.FromString(s)
+	currentTemplate, err2 := templateSet.FromBytes(temp.Bytes())
 	if err2 != nil {
 		return err2.(*Error)
 	}
