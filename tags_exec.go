@@ -25,11 +25,11 @@ func (node *tagExecNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *
 	}
 
 	// New context with global, public and private context
-	// we need all 3
+	// we need all 3, globals comes from templateSet,
+	// public for all variables passed, private for macros etc defined in amin template
 	newContext := make(Context)
 	newContext.Update(ctx.Private)
 	newContext.Update(ctx.Public)
-	newContext.Update(templateSet.Globals)
 	finalRes, _ := currentTemplate.Execute(newContext)
 	moveMacrosToMainTemplate(currentTemplate, ctx)
 
