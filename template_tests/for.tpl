@@ -25,3 +25,6 @@ reversed sorted string map
 
 reversed sorted int map
 '{% for key in simple.intmap reversed sorted %}{{ key }} {% endfor %}'
+
+exportmacros
+{% for x in simple.fixed_item_list exportmacros %}{% if x == 1 %}{% import "macro.helper" imported_macro %}{% else %}{% macro defined_macro(arg) export %}Bye {{arg}}{% endmacro %}{% endif %}{% endfor %}{{imported_macro("a")}} {{defined_macro("a")}}

@@ -35,3 +35,6 @@ reversed sorted string map
 
 reversed sorted int map
 '5 2 1 '
+
+exportmacros
+<p>Hey a!</p> Bye a
