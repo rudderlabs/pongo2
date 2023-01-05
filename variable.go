@@ -659,7 +659,6 @@ func (p *Parser) parseVariableOrLiteral() (IEvaluator, *Error) {
 			return br, nil
 		default:
 			return nil, p.Error(fmt.Errorf("This keyword is not allowed here."), nil)
-<
 		}
 	case TokenSymbol:
 		if t.Val == "[" {
