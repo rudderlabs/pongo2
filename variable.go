@@ -661,7 +661,7 @@ func (p *Parser) parseVariableOrLiteral() (IEvaluator, *Error) {
 			return br, nil
 		default:
 			return nil, p.Error(fmt.Errorf("This keyword is not allowed here."), nil)
-<
+
 		}
 	case TokenSymbol:
 		if t.Val == "[" {
@@ -678,6 +678,7 @@ func (p *Parser) parseVariableOrLiteral() (IEvaluator, *Error) {
 	if t.Typ != TokenIdentifier {
 
 		// First part of a variable MUST be an identifier
+
 
 		return nil, p.Error(fmt.Errorf("Expected either a number, string, keyword or identifier."), t)
 	}
