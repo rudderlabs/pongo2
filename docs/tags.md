@@ -11,6 +11,7 @@ Implemented tags so far which needs documentation:
 * cycle
 * extends
 * exec
+* handlenotfound
 * filter
 * firstof
 * for
