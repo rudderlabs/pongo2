@@ -66,11 +66,10 @@ type ExecutionContext struct {
 	template   *Template
 	macroDepth int
 
-	ErrorOnMissingVal bool
-	Autoescape  bool
-	Public      Context
-	Private     Context
-	Shared      Context
+	Autoescape bool
+	Public     Context
+	Private    Context
+	Shared     Context
 }
 
 var pongo2MetaContext = Context{

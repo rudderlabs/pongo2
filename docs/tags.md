@@ -11,7 +11,6 @@ Implemented tags so far which needs documentation:
 * cycle
 * extends
 * exec
-* erroronmissingval
 * filter
 * firstof
 * for
