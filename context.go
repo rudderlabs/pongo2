@@ -66,7 +66,7 @@ type ExecutionContext struct {
 	template   *Template
 	macroDepth int
 
-	HandleError bool
+	ErrorOnMissingVal bool
 	Autoescape  bool
 	Public      Context
 	Private     Context

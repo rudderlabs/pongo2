@@ -1,9 +1,0 @@
-{% macro xxx() %} abcd {% endmacro %}
-
-{% handlenotfound on %}
-    abcd{{ xxxx() }}fgh
-{% endhandlenotfound %}
-
-{% handlenotfound on %}
-    {{d.asd}}
-{% endhandlenotfound %}

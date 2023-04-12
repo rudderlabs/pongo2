@@ -4,14 +4,14 @@ import (
 	"bytes"
 )
 
-type tagHandleNode struct {
+type tagErrorOnMissingVal struct {
 	position    *Token
 	bodyWrapper *NodeWrapper
 }
 
-func (node *tagHandleNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *Error {
+func (node *tagErrorOnMissingVal) Execute(ctx *ExecutionContext, writer TemplateWriter) *Error {
 	temp := bytes.NewBuffer(make([]byte, 0, 1024)) // 1 KiB size
-	ctx.HandleError = true
+	ctx.ErrorOnMissingVal = true
 
 	err := node.bodyWrapper.Execute(ctx, temp)
 	if err != nil {
@@ -27,11 +27,11 @@ func (node *tagHandleNode) Execute(ctx *ExecutionContext, writer TemplateWriter)
 }
 
 func tagHandleParser(doc *Parser, start *Token, arguments *Parser) (INodeTag, *Error) {
-	execNode := &tagHandleNode{
+	execNode := &tagErrorOnMissingVal{
 		position: start,
 	}
 
-	wrapper, _, err := doc.WrapUntilTag("endhandlenotfound")
+	wrapper, _, err := doc.WrapUntilTag("enderroronmissingval")
 	if err != nil {
 		return nil, err
 	}
@@ -41,5 +41,5 @@ func tagHandleParser(doc *Parser, start *Token, arguments *Parser) (INodeTag, *E
 }
 
 func init() {
-	RegisterTag("handlenotfound", tagHandleParser)
+	RegisterTag("erroronmissingval", tagHandleParser)
 }
