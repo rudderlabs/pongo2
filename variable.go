@@ -379,7 +379,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 
 		if !current.IsValid() {
 			// Value is not valid (anymore)
-			return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			if ctx.ErrorOnMissingVal {
+				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			} else {
+				return AsValue(nil), nil
+			}
 
 		}
 
@@ -510,7 +514,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 
 		if !current.IsValid() {
 			// Value is not valid (e. g. NIL value)
-			return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			if ctx.ErrorOnMissingVal {
+				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			} else {
+				return AsValue(nil), nil
+			}
 		}
 	}
 

@@ -1,0 +1,9 @@
+{% macro foo() %} Foo is called {% endmacro %}
+
+{% erroronmissingval on %}
+    This should {{ bar() }} error.
+{% enderroronmissingval %}
+
+{% erroronmissingval on %}
+    This should throw error {{d.asd}}
+{% enderroronmissingval %}
