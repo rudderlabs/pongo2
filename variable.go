@@ -682,6 +682,7 @@ func (p *Parser) parseVariableOrLiteral() (IEvaluator, *Error) {
 			// Parsing an array literal [expr {, expr}]
 			return p.parseArray()
 
+
 		}
 	}
 
