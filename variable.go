@@ -243,6 +243,7 @@ func (vr *variableResolver) String() string {
 
 func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 	var current reflect.Value
+	var currentPresent bool
 	var isSafe bool
 
 	// we are resolving an in-template array definition
@@ -269,6 +270,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 	}
 
 	for idx, part := range vr.parts {
+		currentPresent = false
 		if idx == 0 {
 			// We're looking up the first part of the variable.
 			// First we're having a look in our private
@@ -276,7 +278,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			val, inPrivate := ctx.Private[vr.parts[0].s]
 			if !inPrivate {
 				// Nothing found? Then have a final lookup in the public context
-				val = ctx.Public[vr.parts[0].s]
+				val, currentPresent = ctx.Public[vr.parts[0].s]
 			}
 			current = reflect.ValueOf(val) // Get the initial value
 		} else {
@@ -289,13 +291,14 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 				funcValue := current.MethodByName(part.s)
 				if funcValue.IsValid() {
 					current = funcValue
+					currentPresent = true
 					isFunc = true
 				}
 			}
 
 			if !isFunc {
 				// If current a pointer, resolve it
-				if current.Kind() == reflect.Ptr {
+				if current.Kind() == reflect.Ptr { 
 					current = current.Elem()
 					if !current.IsValid() {
 						// Value is not valid (anymore)
@@ -312,6 +315,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 					case reflect.String, reflect.Array, reflect.Slice:
 						if part.i >= 0 && current.Len() > part.i {
 							current = current.Index(part.i)
+							currentPresent = true 
 						} else {
 							// In Django, exceeding the length of a list is just empty.
 							return AsValue(nil), nil
@@ -354,6 +358,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							return nil, err
 						}
 						current = current.FieldByName(sv.String())
+						currentPresent = true
 					case reflect.Map:
 						sv, err := part.subscript.Evaluate(ctx)
 						if err != nil {
@@ -364,6 +369,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 						}
 						if sv.val.Type().AssignableTo(current.Type().Key()) {
 							current = current.MapIndex(sv.val)
+							currentPresent = true
 						} else {
 							return AsValue(nil), nil
 						}
@@ -379,7 +385,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 
 		if !current.IsValid() {
 			// Value is not valid (anymore)
-			return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			if !currentPresent {
+				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			}
+
+			return AsValue(nil), nil
 
 		}
 
@@ -390,11 +400,13 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			tmpValue := current.Interface().(*Value)
 			current = tmpValue.val
 			isSafe = tmpValue.safe
+			currentPresent = true
 		}
 
 		// Check whether this is an interface and resolve it where required
 		if current.Kind() == reflect.Interface {
 			current = reflect.ValueOf(current.Interface())
+			currentPresent = true
 		}
 
 		// Check if the part is a function call
@@ -510,7 +522,10 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 
 		if !current.IsValid() {
 			// Value is not valid (e. g. NIL value)
-			return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			if !currentPresent {
+				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
+			}
+			return AsValue(nil), nil
 		}
 	}
 
