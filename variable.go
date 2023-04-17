@@ -298,7 +298,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 
 			if !isFunc {
 				// If current a pointer, resolve it
-				if current.Kind() == reflect.Ptr { 
+				if current.Kind() == reflect.Ptr {
 					current = current.Elem()
 					if !current.IsValid() {
 						// Value is not valid (anymore)
@@ -315,7 +315,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 					case reflect.String, reflect.Array, reflect.Slice:
 						if part.i >= 0 && current.Len() > part.i {
 							current = current.Index(part.i)
-							currentPresent = true 
+							currentPresent = true
 						} else {
 							// In Django, exceeding the length of a list is just empty.
 							return AsValue(nil), nil
@@ -386,6 +386,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 		if !current.IsValid() {
 			// Value is not valid (anymore)
 			if !currentPresent {
+
+				if ctx.AllowMissingVal {
+					return AsValue(nil), nil
+				}
+
 				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
 			}
 
@@ -523,6 +528,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 		if !current.IsValid() {
 			// Value is not valid (e. g. NIL value)
 			if !currentPresent {
+
+				if ctx.AllowMissingVal {
+					return AsValue(nil), nil
+				}
+
 				return AsValue("NOT FOUND"), fmt.Errorf("No value found for %s", vr)
 			}
 			return AsValue(nil), nil
@@ -681,7 +691,6 @@ func (p *Parser) parseVariableOrLiteral() (IEvaluator, *Error) {
 		if t.Val == "[" {
 			// Parsing an array literal [expr {, expr}]
 			return p.parseArray()
-
 
 		}
 	}

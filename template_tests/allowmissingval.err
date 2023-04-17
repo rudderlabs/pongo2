@@ -1,0 +1,3 @@
+{% macro foo() %} Foo is called {% endmacro %}
+This should {{ bar() }} error.
+This should throw error {{d.asd}}
