@@ -276,11 +276,17 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			// First we're having a look in our private
 			// context (e. g. information provided by tags, like the forloop)
 			val, inPrivate := ctx.Private[vr.parts[0].s]
+
 			if !inPrivate {
 				// Nothing found? Then have a final lookup in the public context
 				val, currentPresent = ctx.Public[vr.parts[0].s]
 			}
 			current = reflect.ValueOf(val) // Get the initial value
+			if vr.parts[0].s == "nil" {
+				current = reflect.ValueOf(nil)
+				currentPresent = true
+			}
+
 		} else {
 			// Next parts, resolve it from current
 
