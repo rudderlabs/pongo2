@@ -82,7 +82,7 @@ func newExecutionContext(tpl *Template, ctx Context) *ExecutionContext {
 
 	// Make the pongo2-related funcs/vars available to the context
 	privateCtx["pongo2"] = pongo2MetaContext
-
+	ctx["nil"] = nil
 	return &ExecutionContext{
 		template: tpl,
 

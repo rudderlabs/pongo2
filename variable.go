@@ -282,10 +282,6 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 				val, currentPresent = ctx.Public[vr.parts[0].s]
 			}
 			current = reflect.ValueOf(val) // Get the initial value
-			if vr.parts[0].s == "nil" {
-				current = reflect.ValueOf(nil)
-				currentPresent = true
-			}
 
 		} else {
 			// Next parts, resolve it from current

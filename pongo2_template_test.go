@@ -332,6 +332,18 @@ func TestTemplate_Functions(t *testing.T) {
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] the second return value is not an error",
 			wantErr:      true,
 		},
+		{
+			name:     "NilToNonNilParameter",
+			template: "{{ testFunc(nil) }}",
+			context: pongo2.Context{
+				"mydict": nil,
+				"testFunc": func(i int) int {
+					return 1
+				},
+			},
+			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] function input argument 0 of 'testFunc' must be of type int or *pongo2.Value (not <nil>)",
+			wantErr:      true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
