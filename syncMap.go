@@ -37,3 +37,7 @@ func (sm *SyncMap[K, V]) Entries() map[K]V {
 	}
 	return result
 }
+
+func (sm *SyncMap[K, V]) Length() int {
+	return len(sm.m)
+}

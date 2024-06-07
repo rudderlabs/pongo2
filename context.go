@@ -36,9 +36,7 @@ func NewContext() *Context {
 }
 
 func (c *Context) checkForValidIdentifiers() *Error {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	for k, v := range c.m {
+	for k, v := range c.Entries() {
 		if !reIdentifiers.MatchString(k) {
 			return &Error{
 				Sender:    "checkForValidIdentifiers",
@@ -51,20 +49,10 @@ func (c *Context) checkForValidIdentifiers() *Error {
 
 // Update updates this context with the key/value-pairs from another context.
 func (c *Context) Update(other *Context) *Context {
-	other.lock.RLock()
-	defer other.lock.RUnlock()
-
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	for k, v := range other.m {
-		c.m[k] = v
+	for k, v := range other.Entries() {
+		c.Set(k, v)
 	}
 	return c
-}
-
-func (c *Context) Length() int {
-	return len(c.m)
 }
 
 // ExecutionContext contains all data important for the current rendering state.
@@ -98,12 +86,8 @@ func newExecutionContext(tpl *Template, ctx *Context) *ExecutionContext {
 	privateCtx := NewContext()
 
 	// Make the pongo2-related funcs/vars available to the context
-	// No need to lock privateCtx, as it is not yet shared
 	privateCtx.Set("pongo2", map[string]any{"version": Version})
-
-	ctx.lock.Lock()
-	defer ctx.lock.Unlock()	
-	ctx.m["nil"] = nil
+	ctx.Set("nil", nil)
 
 	return &ExecutionContext{
 		template: tpl,
@@ -122,11 +106,6 @@ func NewChildExecutionContext(parent *ExecutionContext) *ExecutionContext {
 		Private:    NewContext(),
 		Autoescape: parent.Autoescape,
 	}
-	if parent.Shared != nil {
-		parent.Shared.lock.Lock()
-		defer parent.Shared.lock.Unlock()
-	}
-	// No need to lock newctx, as it is not yet shared
 	newctx.Shared = parent.Shared
 
 	// Copy all existing private items
