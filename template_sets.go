@@ -29,7 +29,7 @@ type TemplateSet struct {
 	loaders []TemplateLoader
 
 	// Globals will be provided to all templates created within this template set
-	Globals Context
+	Globals *Context
 
 	// If debug is true (default false), ExecutionContext.Logf() will work and output
 	// to STDOUT. Furthermore, FromCache() won't cache the templates.
@@ -67,7 +67,7 @@ func NewSet(name string, loaders ...TemplateLoader) *TemplateSet {
 	return &TemplateSet{
 		name:          name,
 		loaders:       loaders,
-		Globals:       make(Context),
+		Globals:       NewContext(),
 		bannedTags:    make(map[string]bool),
 		bannedFilters: make(map[string]bool),
 		templateCache: make(map[string]*Template),
@@ -231,7 +231,7 @@ func (set *TemplateSet) FromFile(filename string) (*Template, error) {
 }
 
 // RenderTemplateString is a shortcut and renders a template string directly.
-func (set *TemplateSet) RenderTemplateString(s string, ctx Context) (string, error) {
+func (set *TemplateSet) RenderTemplateString(s string, ctx *Context) (string, error) {
 	set.firstTemplateCreated = true
 
 	tpl := Must(set.FromString(s))
@@ -243,7 +243,7 @@ func (set *TemplateSet) RenderTemplateString(s string, ctx Context) (string, err
 }
 
 // RenderTemplateBytes is a shortcut and renders template bytes directly.
-func (set *TemplateSet) RenderTemplateBytes(b []byte, ctx Context) (string, error) {
+func (set *TemplateSet) RenderTemplateBytes(b []byte, ctx *Context) (string, error) {
 	set.firstTemplateCreated = true
 
 	tpl := Must(set.FromBytes(b))
@@ -255,7 +255,7 @@ func (set *TemplateSet) RenderTemplateBytes(b []byte, ctx Context) (string, erro
 }
 
 // RenderTemplateFile is a shortcut and renders a template file directly.
-func (set *TemplateSet) RenderTemplateFile(fn string, ctx Context) (string, error) {
+func (set *TemplateSet) RenderTemplateFile(fn string, ctx *Context) (string, error) {
 	set.firstTemplateCreated = true
 
 	tpl := Must(set.FromFile(fn))

@@ -6,19 +6,27 @@ import (
 	"github.com/flosch/pongo2/v6"
 )
 
+func createContext(mapInput map[string]any) *pongo2.Context {
+	result := pongo2.NewContext()
+	for k, v := range mapInput {
+		result.Set(k, v)
+	}
+	return result
+}
+
 func TestIssue151(t *testing.T) {
 	tpl, err := pongo2.FromString("{{ mydict.51232_3 }}{{ 12345_123}}{{ 995189baz }}")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	str, err := tpl.Execute(pongo2.Context{
+	str, err := tpl.Execute(createContext(map[string]any{
 		"mydict": map[string]string{
 			"51232_3": "foo",
 		},
 		"12345_123": "bar",
 		"995189baz": "baz",
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +42,7 @@ func TestIssue297(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	str, err := tpl.Execute(pongo2.Context{"input": "one two three four five six"})
+	str, err := tpl.Execute(createContext(map[string]any{"input": "one two three four five six"}))
 	if err != nil {
 		t.Fatal(err)
 	}

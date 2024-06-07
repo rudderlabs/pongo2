@@ -36,7 +36,7 @@ func mustPanicMatch(t *testing.T, fn func(), pattern string) {
 	fn()
 }
 
-func parseTemplate(s string, c pongo2.Context) string {
+func parseTemplate(s string, c *pongo2.Context) string {
 	t, err := testSuite2.FromString(s)
 	if err != nil {
 		panic(err)
@@ -48,7 +48,7 @@ func parseTemplate(s string, c pongo2.Context) string {
 	return out
 }
 
-func parseTemplateFn(s string, c pongo2.Context) func() {
+func parseTemplateFn(s string, c *pongo2.Context) func() {
 	return func() {
 		parseTemplate(s, c)
 	}
@@ -64,7 +64,7 @@ func TestMisc(t *testing.T) {
 	)
 
 	// Context
-	mustPanicMatch(t, parseTemplateFn("", pongo2.Context{"'illegal": nil}), ".*not a valid identifier.*")
+	mustPanicMatch(t, parseTemplateFn("", createContext(map[string]any{"'illegal": nil})), ".*not a valid identifier.*")
 
 	// Registers
 	mustEqual(t, pongo2.RegisterFilter("escape", nil).Error(), ".*is already registered")
@@ -92,12 +92,13 @@ func TestImplicitExecCtx(t *testing.T) {
 
 	val := "a stringy thing"
 
-	res, err := tpl.Execute(pongo2.Context{
+	res, err := tpl.Execute(createContext(map[string]any{
 		"Value": val,
 		"ImplicitExec": func(ctx *pongo2.ExecutionContext) string {
-			return ctx.Public["Value"].(string)
+			val, _ := ctx.Public.Get("Value")
+			return val.(string)
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Error executing template: %v", err)
 	}
@@ -105,11 +106,11 @@ func TestImplicitExecCtx(t *testing.T) {
 	mustEqual(t, res, val)
 
 	// The implicit ctx should not be persisted from call-to-call
-	res, err = tpl.Execute(pongo2.Context{
+	res, err = tpl.Execute(createContext(map[string]any{
 		"ImplicitExec": func() string {
 			return val
 		},
-	})
+	}))
 
 	if err != nil {
 		t.Fatalf("Error executing template: %v", err)
@@ -153,9 +154,9 @@ func FuzzSimpleExecution(f *testing.F) {
 			t.Errorf("%v", err)
 		}
 		if err == nil {
-			mycontext := pongo2.Context{
+			mycontext := createContext(map[string]any{
 				"foobar": contextValue,
-			}
+			})
 			mycontext.Update(tplContext)
 			out.Execute(mycontext)
 		}

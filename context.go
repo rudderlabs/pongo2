@@ -25,10 +25,20 @@ func SetAutoescape(newValue bool) {
 //	{{ myfunc("test", 42) }}
 //	{{ user.name }}
 //	{{ pongo2.version }}
-type Context map[string]any
+type Context struct {
+	*SyncMap[string, any]
+}
 
-func (c Context) checkForValidIdentifiers() *Error {
-	for k, v := range c {
+func NewContext() *Context {
+	return &Context{
+		SyncMap: NewSyncMap[string, any](),
+	}
+}
+
+func (c *Context) checkForValidIdentifiers() *Error {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	for k, v := range c.m {
 		if !reIdentifiers.MatchString(k) {
 			return &Error{
 				Sender:    "checkForValidIdentifiers",
@@ -40,11 +50,21 @@ func (c Context) checkForValidIdentifiers() *Error {
 }
 
 // Update updates this context with the key/value-pairs from another context.
-func (c Context) Update(other Context) Context {
-	for k, v := range other {
-		c[k] = v
+func (c *Context) Update(other *Context) *Context {
+	other.lock.RLock()
+	defer other.lock.RUnlock()
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	for k, v := range other.m {
+		c.m[k] = v
 	}
 	return c
+}
+
+func (c *Context) Length() int {
+	return len(c.m)
 }
 
 // ExecutionContext contains all data important for the current rendering state.
@@ -68,21 +88,23 @@ type ExecutionContext struct {
 
 	AllowMissingVal bool
 	Autoescape      bool
-	Public          Context
-	Private         Context
-	Shared          Context
+	Public          *Context
+	Private         *Context
+	Shared          *Context
 }
 
-var pongo2MetaContext = Context{
-	"version": Version,
-}
 
-func newExecutionContext(tpl *Template, ctx Context) *ExecutionContext {
-	privateCtx := make(Context)
+func newExecutionContext(tpl *Template, ctx *Context) *ExecutionContext {
+	privateCtx := NewContext()
 
 	// Make the pongo2-related funcs/vars available to the context
-	privateCtx["pongo2"] = pongo2MetaContext
-	ctx["nil"] = nil
+	// No need to lock privateCtx, as it is not yet shared
+	privateCtx.Set("pongo2", map[string]any{"version": Version})
+
+	ctx.lock.Lock()
+	defer ctx.lock.Unlock()	
+	ctx.m["nil"] = nil
+
 	return &ExecutionContext{
 		template: tpl,
 
@@ -97,9 +119,14 @@ func NewChildExecutionContext(parent *ExecutionContext) *ExecutionContext {
 		template: parent.template,
 
 		Public:     parent.Public,
-		Private:    make(Context),
+		Private:    NewContext(),
 		Autoescape: parent.Autoescape,
 	}
+	if parent.Shared != nil {
+		parent.Shared.lock.Lock()
+		defer parent.Shared.lock.Unlock()
+	}
+	// No need to lock newctx, as it is not yet shared
 	newctx.Shared = parent.Shared
 
 	// Copy all existing private items

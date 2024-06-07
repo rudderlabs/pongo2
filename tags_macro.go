@@ -18,7 +18,7 @@ type tagMacroNode struct {
 }
 
 func (node *tagMacroNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *Error {
-	ctx.Private[node.name] = func(args ...*Value) (*Value, error) {
+	ctx.Private.Set(node.name, func(args ...*Value) (*Value, error) {
 		ctx.macroDepth++
 		defer func() {
 			ctx.macroDepth--
@@ -29,18 +29,18 @@ func (node *tagMacroNode) Execute(ctx *ExecutionContext, writer TemplateWriter) 
 		}
 
 		return node.call(ctx, args...)
-	}
+	})
 
 	return nil
 }
 
 func (node *tagMacroNode) call(ctx *ExecutionContext, args ...*Value) (*Value, error) {
-	argsCtx := make(Context)
+	argsCtx := NewContext()
 
 	for k, v := range node.args {
 		if v == nil {
 			// User did not provided a default value
-			argsCtx[k] = nil
+			argsCtx.Set(k, nil)
 		} else {
 			// Evaluate the default value
 			valueExpr, err := v.Evaluate(ctx)
@@ -49,7 +49,7 @@ func (node *tagMacroNode) call(ctx *ExecutionContext, args ...*Value) (*Value, e
 				return AsSafeValue(""), err
 			}
 
-			argsCtx[k] = valueExpr
+			argsCtx.Set(k, valueExpr)
 		}
 	}
 
@@ -68,7 +68,7 @@ func (node *tagMacroNode) call(ctx *ExecutionContext, args ...*Value) (*Value, e
 	macroCtx.Private.Update(argsCtx)
 
 	for idx, argValue := range args {
-		macroCtx.Private[node.argsOrder[idx]] = argValue.Interface()
+		macroCtx.Private.Set(node.argsOrder[idx], argValue.Interface())
 	}
 
 	var b bytes.Buffer

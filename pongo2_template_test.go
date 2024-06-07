@@ -109,14 +109,14 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot write to %s", os.TempDir()))
 	}
-	pongo2.DefaultSet.Globals["temp_file"] = f.Name()
+	pongo2.DefaultSet.Globals.Set("temp_file", f.Name())
 }
 
 /*
  * End setup sandbox
  */
 
-var tplContext = pongo2.Context{
+var tplContext = createContext(map[string]any{
 	"number": 11,
 	"simple": map[string]any{
 		"number":                   42,
@@ -264,7 +264,7 @@ Yep!`,
 			},
 		},
 	},
-}
+})
 
 func TestTemplate_Functions(t *testing.T) {
 	mydict := map[string]any{
@@ -275,7 +275,7 @@ func TestTemplate_Functions(t *testing.T) {
 	tests := []struct {
 		name         string
 		template     string
-		context      pongo2.Context
+		context      *pongo2.Context
 		want         string
 		errorMessage string
 		wantErr      bool
@@ -283,44 +283,44 @@ func TestTemplate_Functions(t *testing.T) {
 		{
 			name:     "NoError",
 			template: "{{ testFunc(mydict) }}",
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"mydict": mydict,
 				"testFunc": func(i any) (string, error) {
 					d, err := json.Marshal(i)
 					return string(d), err
 				},
-			},
+			}),
 			want:    `{&quot;foo&quot;:&quot;bar&quot;,&quot;foobar&quot;:8379}`,
 			wantErr: false,
 		},
 		{
 			name:     "WithError",
 			template: "{{ testFunc(mydict) }}",
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"mydict": mydict,
 				"testFunc": func(i any) (string, error) {
 					return "", errors.New("something went wrong")
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] something went wrong",
 			wantErr:      true,
 		},
 		{
 			name:     "TooMuchArguments",
 			template: "{{ testFunc(mydict) }}",
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"mydict": mydict,
 				"testFunc": func(i any) (string, int, error) {
 					return "", 0, nil
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] 'testFunc' must have exactly 1 or 2 output arguments, the second argument must be of type error",
 			wantErr:      true,
 		},
 		{
 			name:     "InvalidArguments",
 			template: "{{ testFunc(mydict) }}",
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"mydict": map[string]any{
 					"foo":    "bar",
 					"foobar": 8379,
@@ -328,26 +328,26 @@ func TestTemplate_Functions(t *testing.T) {
 				"testFunc": func(kwargs map[string]*pongo2.Value, i any) (string, int) {
 					return "", 0
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] the second return value is not an error",
 			wantErr:      true,
 		},
 		{
 			name:     "NilToNonNilParameter",
 			template: "{{ testFunc(nil) }}",
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"mydict": nil,
 				"testFunc": func(kwargs map[string]*pongo2.Value, i int) int {
 					return 1
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] function input argument 0 of 'testFunc' must be of type int or *pongo2.Value (not <nil>)",
 			wantErr:      true,
 		},
 		{
 			name:     "KeywordArgs",
 			template: `{{ testFunc("no named arg", 10, arg1=7, arg2=2>3) }}`,
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"testFunc": func(kwargs map[string]*pongo2.Value, args ...*pongo2.Value) string {
 					res := "["
 					for _, arg := range args {
@@ -365,36 +365,36 @@ func TestTemplate_Functions(t *testing.T) {
 					res += fmt.Sprintf("arg2=%v ", arg2)
 					return res + "]"
 				},
-			},
+			}),
 			want:    `[no named arg 10 arg1=7 arg2=False ]`,
 			wantErr: false,
 		},
 		{
 			name:     "KeywordArgsBeforePositionalArgs",
 			template: `{{ testFunc("no named arg", arg1=7, 10, 2>3) }}`,
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"testFunc": func(kwargs map[string]*pongo2.Value, args ...*pongo2.Value) string {
 					return ""
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] calling a function using a positional argument: 10, after a keyword argument",
 			wantErr:      true,
 		},
 		{
 			name:     "KeywordArgsDisabled",
 			template: `{{ testFunc("no named arg", arg1=7, 2>3) }}`,
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"testFunc": func(args ...*pongo2.Value) string {
 					return ""
 				},
-			},
+			}),
 			errorMessage: "[Error (where: execution) in <string> | Line 1 Col 4 near 'testFunc'] calling a function using a keyword argument: arg1=7, but the function does not support kwargs. Add map[string]*pongo2.Value as first arg in the function",
 			wantErr:      true,
 		},
 		{
 			name:     "NoKeywordArgs",
 			template: `{{ testFunc("no named arg", 10) }}`,
-			context: pongo2.Context{
+			context: createContext(map[string]any{
 				"testFunc": func(kwargs map[string]*pongo2.Value, args ...*pongo2.Value) string {
 					res := "["
 					for _, arg := range args {
@@ -405,7 +405,7 @@ func TestTemplate_Functions(t *testing.T) {
 					}
 					return res + "]"
 				},
-			},
+			}),
 			want:    `[no named arg 10 (no kwargs)]`,
 			wantErr: false,
 		},
@@ -433,7 +433,7 @@ func TestTemplate_Functions(t *testing.T) {
 
 func TestTemplates(t *testing.T) {
 	// Add a global to the default set
-	pongo2.Globals["this_is_a_global_variable"] = "this is a global text"
+	pongo2.Globals.Set("this_is_a_global_variable", "this is a global text")
 
 	matches, err := filepath.Glob("./template_tests/*.tpl")
 	if err != nil {
@@ -661,8 +661,9 @@ func TestBaseDirectory(t *testing.T) {
 
 	fs := pongo2.MustNewLocalFileSystemLoader("")
 	s := pongo2.NewSet("test set with base directory", fs)
-	s.Globals["base_directory"] = "template_tests/base_dir_test/"
-	if err := fs.SetBaseDir(s.Globals["base_directory"].(string)); err != nil {
+	s.Globals.Set("base_directory", "template_tests/base_dir_test/")
+	baseDir, _ := s.Globals.Get("base_directory")
+	if err := fs.SetBaseDir(baseDir.(string)); err != nil {
 		t.Fatal(err)
 	}
 
