@@ -342,6 +342,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							current.Kind().String(), vr.String())
 					}
 				case varTypeAttr:
+					t := current.Type()
+					var s []string
+					for i := 0; i < t.NumMethod(); i++ {
+					    s = append(s, t.Method(i).Name)
+					}
 					funcValue := current.MethodByName("GetAttr")
 					if funcValue.IsValid() {
 						parameters := make([]reflect.Value, 0)
