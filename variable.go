@@ -11,6 +11,7 @@ import (
 const (
 	varTypeInt = iota
 	varTypeIdent
+	varTypeAttr
 	varTypeSubscript
 	varTypeArray
 	varTypeNil
@@ -39,6 +40,8 @@ func (p *variablePart) String() string {
 		return strconv.Itoa(p.i)
 	case varTypeIdent:
 		return p.s
+	case varTypeAttr:
+		return "@" + p.s
 	case varTypeSubscript:
 		return "[subscript]"
 	case varTypeArray:
@@ -336,6 +339,35 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 						current = current.MapIndex(reflect.ValueOf(part.s))
 					default:
 						return nil, fmt.Errorf("can't access a field by name on type %s (variable %s)",
+							current.Kind().String(), vr.String())
+					}
+				case varTypeAttr:
+					funcValue := current.MethodByName("GetAttr")
+					if funcValue.IsValid() {
+						parameters := make([]reflect.Value, 0)
+						parameters = append(parameters, reflect.ValueOf(part.s))
+
+						// Call it and get first return parameter back
+						values := current.Call(parameters)
+						if len(values) == 0 || len(values) > 2 {
+							return nil, fmt.Errorf("number of return values of GetAttr method must be 1 or 2")
+						}
+
+						if len(values) == 2 {
+							e := values[1].Interface()
+							if e != nil {
+								err, ok := e.(error)
+								if !ok {
+									return nil, fmt.Errorf("the second return value is not of type error")
+								}
+								if err != nil {
+									return nil, err
+								}
+							}
+						}
+						current = values[0]
+					} else {
+						return nil, fmt.Errorf("can't access attributes on type %s (variable %s) using GetAttr(attrName) method",
 							current.Kind().String(), vr.String())
 					}
 				case varTypeSubscript:
@@ -804,6 +836,21 @@ variableLoop:
 				// EOF
 				return nil, p.Error(fmt.Errorf("Unexpected EOF, expected either IDENTIFIER or NUMBER after DOT."),
 					p.lastToken)
+			}
+		} else if p.Match(TokenSymbol, "@") != nil {
+			// Next variable part (can be either NUMBER or IDENT)
+			t2 := p.Current()
+			if t2 == nil {
+				return nil, p.Error(fmt.Errorf("Unexpected EOF, expected either IDENTIFIER after @."), p.lastToken)
+			} else if t2.Typ != TokenIdentifier {
+				return nil, p.Error(fmt.Errorf("This token is not allowed within a variable name."), t2)
+			} else {
+				resolver.parts = append(resolver.parts, &variablePart{
+					typ: varTypeAttr,
+					s:   t2.Val,
+				})
+				p.Consume() // consume: IDENT
+				continue variableLoop
 			}
 		} else if p.Match(TokenSymbol, "[") != nil {
 			// Variable subscript
