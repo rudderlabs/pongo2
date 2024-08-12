@@ -852,7 +852,7 @@ variableLoop:
 
 					if p.Match(TokenSymbol, "(") != nil {
 						// Attribute call with parameters
-						// @ AttrName '{' Comma-separated list of expressions '}'
+						// @ AttrName '(' Comma-separated list of expressions ')'
 					attrArgsLoop:
 						for {
 							if p.Remaining() == 0 {
