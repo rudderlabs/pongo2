@@ -41,7 +41,7 @@ func (p *variablePart) String() string {
 	case varTypeIdent:
 		return p.s
 	case varTypeAttr:
-		return "@" + p.s
+		return "@" + p.s + "{attr args}"
 	case varTypeSubscript:
 		return "[subscript]"
 	case varTypeArray:
@@ -285,6 +285,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 				// Nothing found? Then have a final lookup in the public context
 				val, currentPresent = ctx.Public[vr.parts[0].s]
 			}
+
 			current = reflect.ValueOf(val) // Get the initial value
 
 		} else {
@@ -293,12 +294,21 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			// Before resolving the pointer, let's see if we have a method to call
 			// Problem with resolving the pointer is we're changing the receiver
 			isFunc := false
+			funcName := ""
 			if part.typ == varTypeIdent {
-				funcValue := current.MethodByName(part.s)
+				funcName = part.s
+			} else if part.typ == varTypeAttr {
+				funcName = "GetAttr"
+			}
+			if funcName != "" {
+				funcValue := current.MethodByName(funcName)
 				if funcValue.IsValid() {
 					current = funcValue
 					currentPresent = true
 					isFunc = true
+				} else if part.typ == varTypeAttr {
+					return nil, fmt.Errorf("can't access method %s on type %s (variable %s)",
+						funcName, current.Kind().String(), vr.String())
 				}
 			}
 
@@ -339,40 +349,6 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 						current = current.MapIndex(reflect.ValueOf(part.s))
 					default:
 						return nil, fmt.Errorf("can't access a field by name on type %s (variable %s)",
-							current.Kind().String(), vr.String())
-					}
-				case varTypeAttr:
-					t := current.Type()
-					var s []string
-					for i := 0; i < t.NumMethod(); i++ {
-					    s = append(s, t.Method(i).Name)
-					}
-					funcValue := current.MethodByName("GetAttr")
-					if funcValue.IsValid() {
-						parameters := make([]reflect.Value, 0)
-						parameters = append(parameters, reflect.ValueOf(part.s))
-
-						// Call it and get first return parameter back
-						values := current.Call(parameters)
-						if len(values) == 0 || len(values) > 2 {
-							return nil, fmt.Errorf("number of return values of GetAttr method must be 1 or 2")
-						}
-
-						if len(values) == 2 {
-							e := values[1].Interface()
-							if e != nil {
-								err, ok := e.(error)
-								if !ok {
-									return nil, fmt.Errorf("the second return value is not of type error")
-								}
-								if err != nil {
-									return nil, err
-								}
-							}
-						}
-						current = values[0]
-					} else {
-						return nil, fmt.Errorf("can't access attributes on type %s (variable %s) using GetAttr(attrName) method",
 							current.Kind().String(), vr.String())
 					}
 				case varTypeSubscript:
@@ -508,6 +484,10 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			// Evaluate all parameters
 			args := make([]reflect.Value, 0)
 			kwargs := make(map[string]reflect.Value)
+
+			if part.typ == varTypeAttr {
+				args = append(args, reflect.ValueOf(AsValue(part.s)))
+			}
 
 			numArgs := t.NumIn()
 			isVariadic := t.IsVariadic()
@@ -816,6 +796,7 @@ variableLoop:
 					})
 					p.Consume() // consume: IDENT
 					continue variableLoop
+
 				case TokenNumber:
 					i, err := strconv.Atoi(t2.Val)
 					if err != nil {
@@ -827,6 +808,7 @@ variableLoop:
 					})
 					p.Consume() // consume: NUMBER
 					continue variableLoop
+
 				case TokenNil:
 					resolver.parts = append(resolver.parts, &variablePart{
 						typ:   varTypeNil,
@@ -834,6 +816,68 @@ variableLoop:
 					})
 					p.Consume() // consume: NIL
 					continue variableLoop
+
+				case TokenSymbol:
+					if t2.Val != "@" {
+						return nil, p.Error(fmt.Errorf("Unexpected symbol %s at the beginning of the identifier."), t2)
+					}
+					p.Consume() // consume: @
+
+					// Next part must be an IDENT.
+					t2 = p.Current()
+					if t2 == nil {
+						return nil, p.Error(fmt.Errorf("Unexpected EOF, expected either attr IDENTIFIER after @."), p.lastToken)
+					} else if t2.Typ != TokenIdentifier {
+						return nil, p.Error(fmt.Errorf("This token is not allowed within an identifier name."), t2)
+					}
+
+					attrPart := &variablePart{
+						typ:            varTypeAttr,
+						s:              t2.Val,
+						isFunctionCall: true,
+					}
+					resolver.parts = append(resolver.parts, attrPart)
+					p.Consume() // consume: IDENT
+
+					if p.Match(TokenSymbol, "{") != nil {
+						// Attribute call with parameters
+						// @ AttrName '{' Comma-separated list of expressions '}'
+					attrArgsLoop:
+						for {
+							if p.Remaining() == 0 {
+								return nil, p.Error(
+									fmt.Errorf("Unexpected EOF, expected function call argument list."),
+									p.lastToken)
+							}
+
+							if p.Peek(TokenSymbol, "}") == nil {
+								// No closing bracket, so we're parsing an expression
+								exprArg, err := p.ParseExpression()
+								if err != nil {
+									return nil, err
+								}
+								attrPart.callingArgs = append(attrPart.callingArgs, exprArg)
+
+								if p.Match(TokenSymbol, "}") != nil {
+									// If there's a closing bracket after an expression, we will stop parsing the arguments
+									break attrArgsLoop
+								} else {
+									// If there's NO closing bracket, there MUST be an comma
+									if p.Match(TokenSymbol, ",") == nil {
+										return nil,
+											p.Error(fmt.Errorf("Missing comma or closing bracket after argument."),
+												nil)
+									}
+								}
+							} else {
+								// We got a closing bracket, so stop parsing arguments
+								p.Consume()
+								break attrArgsLoop
+							}
+						}
+					}
+					continue variableLoop
+
 				default:
 					return nil, p.Error(fmt.Errorf("This token is not allowed within a variable name."), t2)
 				}
@@ -841,21 +885,6 @@ variableLoop:
 				// EOF
 				return nil, p.Error(fmt.Errorf("Unexpected EOF, expected either IDENTIFIER or NUMBER after DOT."),
 					p.lastToken)
-			}
-		} else if p.Match(TokenSymbol, "@") != nil {
-			// Next variable part (can be either NUMBER or IDENT)
-			t2 := p.Current()
-			if t2 == nil {
-				return nil, p.Error(fmt.Errorf("Unexpected EOF, expected either IDENTIFIER after @."), p.lastToken)
-			} else if t2.Typ != TokenIdentifier {
-				return nil, p.Error(fmt.Errorf("This token is not allowed within a variable name."), t2)
-			} else {
-				resolver.parts = append(resolver.parts, &variablePart{
-					typ: varTypeAttr,
-					s:   t2.Val,
-				})
-				p.Consume() // consume: IDENT
-				continue variableLoop
 			}
 		} else if p.Match(TokenSymbol, "[") != nil {
 			// Variable subscript
