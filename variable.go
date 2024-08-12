@@ -469,8 +469,15 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 				evaluatedArgs = append(evaluatedArgs, v)
 			}
 
+			hasAttrNameArg := 0
+			if part.typ == varTypeAttr {
+				hasAttrNameArg = 1
+			}
+
 			// Input arguments
-			if len(currArgs)-kwargCount != t.NumIn()-includeKwargsBit && !(len(currArgs)-kwargCount >= t.NumIn()-1-includeKwargsBit && t.IsVariadic()) {
+			if (len(currArgs)+hasAttrNameArg-kwargCount != t.NumIn()-includeKwargsBit &&
+					!(len(currArgs)+hasAttrNameArg-kwargCount >= t.NumIn()-1-includeKwargsBit &&
+					t.IsVariadic())) {
 				return nil,
 					fmt.Errorf("function input argument count (%d) of '%s' must be equal to the calling argument count (%d)",
 						t.NumIn()-includeKwargsBit, vr.String(), len(currArgs)-kwargCount)
@@ -486,7 +493,11 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			kwargs := make(map[string]reflect.Value)
 
 			if part.typ == varTypeAttr {
-				args = append(args, reflect.ValueOf(AsValue(part.s)))
+				var value any = part.s
+				if includeKwargsBit==1 {
+					value = AsValue(part.s)
+				}
+				args = append(args, reflect.ValueOf(value))
 			}
 
 			numArgs := t.NumIn()
@@ -819,7 +830,7 @@ variableLoop:
 
 				case TokenSymbol:
 					if t2.Val != "@" {
-						return nil, p.Error(fmt.Errorf("Unexpected symbol %s at the beginning of the identifier."), t2)
+						return nil, p.Error(fmt.Errorf("Unexpected symbol %s at the beginning of the identifier.", t2.Val), t2)
 					}
 					p.Consume() // consume: @
 
@@ -839,7 +850,7 @@ variableLoop:
 					resolver.parts = append(resolver.parts, attrPart)
 					p.Consume() // consume: IDENT
 
-					if p.Match(TokenSymbol, "{") != nil {
+					if p.Match(TokenSymbol, "(") != nil {
 						// Attribute call with parameters
 						// @ AttrName '{' Comma-separated list of expressions '}'
 					attrArgsLoop:
@@ -850,7 +861,7 @@ variableLoop:
 									p.lastToken)
 							}
 
-							if p.Peek(TokenSymbol, "}") == nil {
+							if p.Peek(TokenSymbol, ")") == nil {
 								// No closing bracket, so we're parsing an expression
 								exprArg, err := p.ParseExpression()
 								if err != nil {
@@ -858,7 +869,7 @@ variableLoop:
 								}
 								attrPart.callingArgs = append(attrPart.callingArgs, exprArg)
 
-								if p.Match(TokenSymbol, "}") != nil {
+								if p.Match(TokenSymbol, ")") != nil {
 									// If there's a closing bracket after an expression, we will stop parsing the arguments
 									break attrArgsLoop
 								} else {
