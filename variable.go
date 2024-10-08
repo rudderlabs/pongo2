@@ -381,6 +381,8 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							current = getAttr
 							currentPresent = true
 							assumeAttr = true
+						} else {
+							current = tryField
 						}
 					}
 				case varTypeSubscript:
