@@ -307,6 +307,7 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			}
 
 			// If not found in either private or public, try fallback to "this"
+			resolvedUsingThis := false
 			if !currentPresent {
 				part := vr.parts[0]
 				if part.typ == varTypeIdent {
@@ -328,15 +329,18 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							if usedAttr {
 								assumeAttr = true
 							}
+							resolvedUsingThis = true
 						}
 					}
 				}
 			}
 
-                        if value, ok := val.(*Value); ok {
-				current = value.val
-			} else {
-				current = reflect.ValueOf(val) // Get the initial value
+			if !resolvedUsingThis {
+				if value, ok := val.(*Value); ok {
+					current = value.val
+				} else {
+					current = reflect.ValueOf(val) // Get the initial value
+				}
 			}
 
 		} else {
