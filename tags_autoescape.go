@@ -8,12 +8,21 @@ type tagAutoescapeNode struct {
 }
 
 func (node *tagAutoescapeNode) Execute(ctx *ExecutionContext, writer TemplateWriter) *Error {
+	// Gracefully handle unexpected nil receiver which can occur with malformed
+	// nested autoescape blocks. Treat it as a no-op instead of causing a panic.
+	if node == nil {
+		return nil
+	}
+
 	old := ctx.Autoescape
 	ctx.Autoescape = node.autoescape
-
-	err := node.wrapper.Execute(ctx, writer)
-	if err != nil {
-		return err
+	var err *Error
+	if node.wrapper != nil {
+		err = node.wrapper.Execute(ctx, writer)
+		if err != nil {
+			ctx.Autoescape = old
+			return err
+		}
 	}
 
 	ctx.Autoescape = old
