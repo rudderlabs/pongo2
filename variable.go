@@ -322,13 +322,16 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							fv = valuePtr.val
 						}
 
-						resolved, found, usedAttr := tryResolveFieldMapOrAttr(fv, part.s)
+						resolved, found, usedAttr, isMap := tryResolveFieldMapOrAttr(fv, part.s)
 						if found {
 							current = resolved
 							currentPresent = true
 							if usedAttr {
 								assumeAttr = true
 							}
+							resolvedUsingThis = true
+						} else if isMap {
+							current = resolved
 							resolvedUsingThis = true
 						}
 					}
@@ -397,14 +400,21 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							current.Kind().String(), vr.String())
 					}
 				case varTypeIdent:
-					nextVal, found, usedAttr := tryResolveFieldMapOrAttr(current, part.s)
+					nextVal, found, usedAttr, isMap := tryResolveFieldMapOrAttr(current, part.s)
 					if found {
 						current = nextVal
 						currentPresent = true
 						if usedAttr {
 							assumeAttr = true
 						}
+					} else if isMap {
+						current = nextVal
+						if usedAttr {
+							assumeAttr = true
+						}
 					} else {
+						fmt.Printf("\ncan't access a field/map key by name on \ntype %s \n\t(variable %s) \n\tcurrent %v\n",
+							current.Kind().String(), vr.String(), current.Interface())
 						return nil, fmt.Errorf("can't access a field/map key by name on type %s (variable %s)",
 							current.Kind().String(), vr.String())
 					}
@@ -690,17 +700,18 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 // 1. Struct field
 // 2. Map key
 // 3. getAttr method (if present)
-// Returns (resolvedVal, found, usedAttr).
-func tryResolveFieldMapOrAttr(val reflect.Value, name string) (reflect.Value, bool, bool) {
+// Returns (resolvedVal, found, usedAttr, isMap).
+func tryResolveFieldMapOrAttr(val reflect.Value, name string) (reflect.Value, bool, bool, bool) {
+	isMap := false
 	if !val.IsValid() {
-		return reflect.Value{}, false, false
+		return reflect.Value{}, false, false, isMap
 	}
 
 	// If val is a pointer, deref it
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 		if !val.IsValid() {
-			return reflect.Value{}, false, false
+			return reflect.Value{}, false, false, isMap
 		}
 	}
 
@@ -708,15 +719,17 @@ func tryResolveFieldMapOrAttr(val reflect.Value, name string) (reflect.Value, bo
 	if val.Kind() == reflect.Struct {
 		f := val.FieldByName(name)
 		if f.IsValid() {
-			return f, true, false
+			return f, true, false, isMap
 		}
 	}
 
 	// 2. Map key
+	var m reflect.Value
 	if val.Kind() == reflect.Map {
-		m := val.MapIndex(reflect.ValueOf(name))
+		isMap = true
+		m = val.MapIndex(reflect.ValueOf(name))
 		if m.IsValid() {
-			return m, true, false
+			return m, true, false, isMap
 		}
 	}
 
@@ -725,13 +738,17 @@ func tryResolveFieldMapOrAttr(val reflect.Value, name string) (reflect.Value, bo
 	if !getAttr.IsValid() && val.CanAddr() {
 		getAttr = val.Addr().MethodByName(getAttrMethodName)
 	}
-	return getAttr, getAttr.IsValid(), getAttr.IsValid()
+	if getAttr.IsValid() {
+		return getAttr, true, getAttr.IsValid(), isMap
+	} else if isMap {
+		// Was a map value, but wasn't found
+		return m, false, false, isMap
+	} else {
+		return getAttr, false, getAttr.IsValid(), isMap
+	}
 }
 
 func (vr *variableResolver) Evaluate(ctx *ExecutionContext) (*Value, *Error) {
-        if (vr.locationToken.Val == "inptu_material") {
-              fmt.Println("Hoho")
-        }
 	value, err := vr.resolve(ctx)
 	if err != nil {
 		return AsValue(nil), ctx.Error(err, vr.locationToken)

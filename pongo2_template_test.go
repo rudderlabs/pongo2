@@ -605,7 +605,6 @@ func TestTemplate_ThisFallback(t *testing.T) {
 				return
 			}
 			got, err := tpl.Execute(tt.context)
-
 			if err != nil {
 				// We expect an error
 				if !tt.wantErr {
