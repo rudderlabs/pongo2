@@ -403,8 +403,6 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 						currentPresent = true
 						if usedAttr {
 							assumeAttr = true
-						} else {
-							current = tryField
 						}
 					} else {
 						return nil, fmt.Errorf("can't access a field/map key by name on type %s (variable %s)",
