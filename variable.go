@@ -298,12 +298,53 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 			// context (e. g. information provided by tags, like the forloop)
 			val, inPrivate := ctx.Private[vr.parts[0].s]
 
-			if !inPrivate {
-				// Nothing found? Then have a final lookup in the public context
+			if inPrivate {
+				// We found it in private
+				currentPresent = true
+			} else {
+				// Not found in private? Then have a final lookup in the public context
 				val, currentPresent = ctx.Public[vr.parts[0].s]
 			}
 
-			current = reflect.ValueOf(val) // Get the initial value
+			// If not found in either private or public, try fallback to "this"
+			resolvedUsingThis := false
+			if !currentPresent {
+				part := vr.parts[0]
+				if part.typ == varTypeIdent {
+					valThis, inPrivateThis := ctx.Private["this"]
+					inPublicThis := false
+					if !inPrivateThis {
+						valThis, inPublicThis = ctx.Public["this"]
+					}
+					if inPrivateThis || inPublicThis {
+						fv := reflect.ValueOf(valThis)
+						if valuePtr, ok := valThis.(*Value); ok {
+							fv = valuePtr.val
+						}
+
+						resolved, found, usedAttr, isMap := tryResolveFieldMapOrAttr(fv, part.s)
+						if found {
+							current = resolved
+							currentPresent = true
+							if usedAttr {
+								assumeAttr = true
+							}
+							resolvedUsingThis = true
+						} else if isMap {
+							current = resolved
+							resolvedUsingThis = true
+						}
+					}
+				}
+			}
+
+			if !resolvedUsingThis {
+				if value, ok := val.(*Value); ok {
+					current = value.val
+				} else {
+					current = reflect.ValueOf(val) // Get the initial value
+				}
+			}
 
 		} else {
 			// Next parts, resolve it from current
@@ -359,31 +400,23 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 							current.Kind().String(), vr.String())
 					}
 				case varTypeIdent:
-					var tryField reflect.Value
-					// Calling a field or key
-					switch current.Kind() {
-					case reflect.Struct:
-						tryField = current.FieldByName(part.s)
-					case reflect.Map:
-						tryField = current.MapIndex(reflect.ValueOf(part.s))
-					default:
-						return nil, fmt.Errorf("can't access a field by name on type %s (variable %s)",
-							current.Kind().String(), vr.String())
-					}
-					if tryField.IsValid() {
-						current = tryField
-					} else {
-						getAttr := current.MethodByName(getAttrMethodName)
-						if !getAttr.IsValid() && current.CanAddr() {
-							getAttr = current.Addr().MethodByName(getAttrMethodName)
-						}
-						if getAttr.IsValid() {
-							current = getAttr
-							currentPresent = true
+					nextVal, found, usedAttr, isMap := tryResolveFieldMapOrAttr(current, part.s)
+					if found {
+						current = nextVal
+						currentPresent = true
+						if usedAttr {
 							assumeAttr = true
-						} else {
-							current = tryField
 						}
+					} else if isMap {
+						current = nextVal
+						if usedAttr {
+							assumeAttr = true
+						}
+					} else {
+						fmt.Printf("\ncan't access a field/map key by name on \ntype %s \n\t(variable %s) \n\tcurrent %v\n",
+							current.Kind().String(), vr.String(), current.Interface())
+						return nil, fmt.Errorf("can't access a field/map key by name on type %s (variable %s)",
+							current.Kind().String(), vr.String())
 					}
 				case varTypeSubscript:
 					// Calling an index is only possible for:
@@ -661,6 +694,58 @@ func (vr *variableResolver) resolve(ctx *ExecutionContext) (*Value, error) {
 	}
 
 	return &Value{val: current, safe: isSafe}, nil
+}
+
+// tryResolveFieldMapOrAttr tries to resolve `name` from `val` by:
+// 1. Struct field
+// 2. Map key
+// 3. getAttr method (if present)
+// Returns (resolvedVal, found, usedAttr, isMap).
+func tryResolveFieldMapOrAttr(val reflect.Value, name string) (reflect.Value, bool, bool, bool) {
+	isMap := false
+	if !val.IsValid() {
+		return reflect.Value{}, false, false, isMap
+	}
+
+	// If val is a pointer, deref it
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+		if !val.IsValid() {
+			return reflect.Value{}, false, false, isMap
+		}
+	}
+
+	// 1. Struct field
+	if val.Kind() == reflect.Struct {
+		f := val.FieldByName(name)
+		if f.IsValid() {
+			return f, true, false, isMap
+		}
+	}
+
+	// 2. Map key
+	var m reflect.Value
+	if val.Kind() == reflect.Map {
+		isMap = true
+		m = val.MapIndex(reflect.ValueOf(name))
+		if m.IsValid() {
+			return m, true, false, isMap
+		}
+	}
+
+	// 3. Attempt getAttr fallback
+	getAttr := val.MethodByName(getAttrMethodName)
+	if !getAttr.IsValid() && val.CanAddr() {
+		getAttr = val.Addr().MethodByName(getAttrMethodName)
+	}
+	if getAttr.IsValid() {
+		return getAttr, true, getAttr.IsValid(), isMap
+	} else if isMap {
+		// Was a map value, but wasn't found
+		return m, false, false, isMap
+	} else {
+		return getAttr, false, getAttr.IsValid(), isMap
+	}
 }
 
 func (vr *variableResolver) Evaluate(ctx *ExecutionContext) (*Value, *Error) {
