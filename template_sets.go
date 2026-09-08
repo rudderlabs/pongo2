@@ -150,7 +150,7 @@ func (set *TemplateSet) resolveTemplate(tpl *Template, path string) (name string
 		name = set.resolveFilenameForLoader(loader, tpl, path)
 		fd, err = loader.Get(name)
 		if err == nil {
-			return
+			return name, loader, fd, err
 		}
 	}
 

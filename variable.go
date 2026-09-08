@@ -981,7 +981,8 @@ variableLoop:
 							if p.Remaining() == 0 {
 								return nil, p.Error(
 									fmt.Errorf("Unexpected EOF, expected function call argument list."),
-									p.lastToken)
+									p.lastToken,
+								)
 							}
 
 							if p.Peek(TokenSymbol, ")") == nil {
