@@ -18,7 +18,7 @@ func (node *tagAllowMissingVal) Execute(ctx *ExecutionContext, writer TemplateWr
 		return err
 	}
 	templateSet := ctx.template.set
-	currentTemplate, err2 := templateSet.FromBytes(temp.Bytes())
+	currentTemplate, err2 := templateSet.fromBytesCached(temp.Bytes())
 	if err2 != nil {
 		return err2.(*Error)
 	}
