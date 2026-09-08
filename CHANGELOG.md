@@ -1,5 +1,10 @@
 # Changelog
 
+## [6.3.0](https://github.com/rudderlabs/pongo2/compare/v6.2.0...v6.3.0)
+
+- Make `TemplateSet.firstTemplateCreated` atomic to avoid races when templates are parsed concurrently.
+- Add a bounded exec-body parse cache with `SetExecTemplateCache` and `ExecTemplateCacheStats`.
+
 ## [6.1.0](https://github.com/rudderlabs/pongo2/compare/v6.0.18...v6.1.0) (2024-10-08)
 
 
